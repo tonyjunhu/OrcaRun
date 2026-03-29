@@ -227,7 +227,43 @@
       .waitlist-fields{grid-template-columns:1fr}
     }
 
-  </style>
+  
+/* thank-you popup */
+.waitlist-popup-overlay{
+  position:fixed; inset:0; background:rgba(15,23,42,.45);
+  display:none; align-items:center; justify-content:center;
+  z-index:9999; padding:24px;
+}
+.waitlist-popup-overlay.show{display:flex;}
+.waitlist-popup{
+  width:min(92vw, 440px); background:#fff; border-radius:24px;
+  box-shadow:0 24px 80px rgba(15,23,42,.22);
+  padding:30px 26px; text-align:center; border:1px solid rgba(229,231,235,.9);
+}
+.waitlist-popup h3{
+  margin:0; font-size:30px; line-height:1.05; letter-spacing:-.03em; font-weight:900; color:var(--navy);
+}
+.waitlist-popup p{
+  margin:14px 0 0; font-size:17px; color:var(--muted); font-weight:600;
+}
+.waitlist-popup .popup-btn{
+  margin-top:22px; display:inline-flex; align-items:center; justify-content:center;
+  border:none; border-radius:999px; padding:13px 22px; font-size:15px; font-weight:800;
+  background:var(--accent); color:#fff; cursor:pointer;
+  box-shadow:0 14px 28px rgba(255,107,107,.24);
+}
+
+/* solid white navbar */
+.navbar, .nav, header {
+  background:#ffffff !important;
+  opacity:1 !important;
+  backdrop-filter:none !important;
+  box-shadow:0 4px 20px rgba(0,0,0,0.06);
+  position:sticky;
+  top:0;
+  z-index:1000;
+}
+</style>
 </head>
 <body>
 <nav class="nav">
@@ -366,7 +402,7 @@
 <input name="email" placeholder="Enter your email" required="" type="email"/>
 <button class="btn btn-primary" type="submit">Join Waitlist</button>
 </div>
-<div class="waitlist-help">Ready to go live: replace the form endpoint in the HTML with your Formspree, Tally, or backend URL.</div>
+
 <div aria-live="polite" class="form-status" id="formStatus"></div>
 </form>
 </div>
@@ -438,5 +474,64 @@
     });
   })();
 </script>
-</body>
+<div aria-hidden="true" class="waitlist-popup-overlay" id="waitlistPopup">
+<div aria-labelledby="waitlistPopupTitle" aria-modal="true" class="waitlist-popup" role="dialog">
+<h3 id="waitlistPopupTitle">Thanks</h3>
+
+<button class="popup-btn" id="waitlistPopupClose" type="button">Close</button>
+</div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var form = document.querySelector('form');
+  var popup = document.getElementById('waitlistPopup');
+  var closeBtn = document.getElementById('waitlistPopupClose');
+  var emailInput = document.querySelector('input[type="email"]');
+
+  function showPopup() {
+    if (!popup) return;
+    popup.classList.add('show');
+    popup.setAttribute('aria-hidden', 'false');
+  }
+
+  function hidePopup() {
+    if (!popup) return;
+    popup.classList.remove('show');
+    popup.setAttribute('aria-hidden', 'true');
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', hidePopup);
+  }
+
+  if (popup) {
+    popup.addEventListener('click', function (e) {
+      if (e.target === popup) hidePopup();
+    });
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') hidePopup();
+  });
+
+  if (form && emailInput) {
+    form.addEventListener('submit', function (e) {
+      var email = emailInput.value.trim();
+      var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      // stop everything if email is invalid
+      if (!emailRegex.test(email)) {
+        e.preventDefault();
+        hidePopup();
+        alert("Please enter a valid email address.");
+        emailInput.focus();
+        return false;
+      }
+
+      // only show popup for valid email
+      setTimeout(showPopup, 300);
+    });
+  }
+});
+</script></body>
 </html>

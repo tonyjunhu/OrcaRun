@@ -398,11 +398,10 @@
 <p>Be the first to simplify your business,  and start winning more jobs.</p>
 <form action="https://formspree.io/f/xnjopvye" class="waitlist-form" id="waitlistForm" method="POST" novalidate="">
 <div class="waitlist-fields">
-<input name="name" placeholder="Your name (optional)" type="text"/>
-<input name="email" placeholder="Enter your email" required="" type="email"/>
+<input id="waitlistName" name="name" placeholder="Your name (optional)" type="text"/>
+<input id="waitlistEmail" name="email" placeholder="Enter your email" required="" type="email"/>
 <button class="btn btn-primary" type="submit">Join Waitlist</button>
 </div>
-
 <div aria-live="polite" class="form-status" id="formStatus"></div>
 </form>
 </div>
@@ -414,81 +413,35 @@
 <div>Simple operating software for contractors.</div>
 </div>
 </footer>
-<script>
-  (function(){
-    const form = document.getElementById('waitlistForm');
-    const status = document.getElementById('formStatus');
-    if(!form || !status) return;
-
-    const setStatus = (message, type='') => {
-      status.textContent = message;
-      status.className = 'form-status' + (type ? ' ' + type : '');
-    };
-
-    form.addEventListener('submit', async function(e){
-      e.preventDefault();
-      const formData = new FormData(form);
-      const email = String(formData.get('email') || '').trim();
-      const name = String(formData.get('name') || '').trim();
-      const endpoint = form.dataset.endpoint.trim();
-
-      if(!email){
-        setStatus('Please enter your email.', 'error');
-        return;
-      }
-
-      const payload = {
-        name,
-        email,
-        source: 'orca-run-v12-waitlist',
-        submittedAt: new Date().toISOString()
-      };
-
-      if(endpoint){
-        try{
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          if(!res.ok) throw new Error('submit_failed');
-          form.reset();
-          setStatus('Thanks — you are on the waitlist.', 'success');
-          return;
-        }catch(err){
-          setStatus('Submission failed. Please check your endpoint and try again.', 'error');
-          return;
-        }
-      }
-
-      try{
-        const key = 'orcaRunWaitlist';
-        const existing = JSON.parse(localStorage.getItem(key) || '[]');
-        existing.push(payload);
-        localStorage.setItem(key, JSON.stringify(existing));
-        form.reset();
-        setStatus('Saved locally in this browser. Add your endpoint to collect real signups.', 'success');
-      }catch(err){
-        setStatus('Saved failed in this browser. Add an endpoint to activate the waitlist.', 'error');
-      }
-    });
-  })();
-</script>
 <div aria-hidden="true" class="waitlist-popup-overlay" id="waitlistPopup">
 <div aria-labelledby="waitlistPopupTitle" aria-modal="true" class="waitlist-popup" role="dialog">
-<h3 id="waitlistPopupTitle">Thanks</h3>
-
+<h3 id="waitlistPopupTitle"></h3>
 <button class="popup-btn" id="waitlistPopupClose" type="button">Close</button>
 </div>
 </div>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  var form = document.querySelector('form');
+  var form = document.getElementById('waitlistForm') || document.querySelector('form');
+  var status = document.getElementById('formStatus');
   var popup = document.getElementById('waitlistPopup');
   var closeBtn = document.getElementById('waitlistPopupClose');
-  var emailInput = document.querySelector('input[type="email"]');
+  var emailInput = document.getElementById('waitlistEmail') || (form ? form.querySelector('input[name="email"]') : null);
+  var nameInput = document.getElementById('waitlistName') || (form ? form.querySelector('input[name="name"]') : null);
+  var submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+  var popupTitle = document.getElementById('waitlistPopupTitle');
 
-  function showPopup() {
+  if (!form || !emailInput) return;
+
+  function setStatus(message, type) {
+    if (!status) return;
+    status.textContent = message || '';
+    status.className = 'form-status' + (type ? ' ' + type : '');
+  }
+
+  function showPopup(name) {
+    if (popupTitle) {
+      popupTitle.textContent = 'Thank you, ' + name + '. You are on the waiting list now and we will update you soon';
+    }
     if (!popup) return;
     popup.classList.add('show');
     popup.setAttribute('aria-hidden', 'false');
@@ -514,24 +467,73 @@ document.addEventListener('DOMContentLoaded', function () {
     if (e.key === 'Escape') hidePopup();
   });
 
-  if (form && emailInput) {
-    form.addEventListener('submit', function (e) {
-      var email = emailInput.value.trim();
-      var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    hidePopup();
+    setStatus('', '');
 
-      // stop everything if email is invalid
-      if (!emailRegex.test(email)) {
-        e.preventDefault();
-        hidePopup();
-        alert("Please enter a valid email address.");
-        emailInput.focus();
-        return false;
+    var email = (emailInput.value || '').trim();
+    var userName = nameInput ? (nameInput.value || '').trim() : '';
+    var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!userName) {
+      setStatus('Please enter your name.', 'error');
+      if (nameInput) nameInput.focus();
+      return;
+    }
+
+    if (!emailRegex.test(email)) {
+      setStatus('Please enter a valid email address.', 'error');
+      emailInput.focus();
+      return;
+    }
+
+    var endpoint = form.getAttribute('action');
+    if (!endpoint) {
+      setStatus('Form endpoint is missing.', 'error');
+      return;
+    }
+
+    var formData = new FormData(form);
+    formData.set('name', userName);
+    formData.set('email', email);
+    formData.set('source', 'orca-run-v12-waitlist');
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.dataset.originalText = submitBtn.textContent;
+      submitBtn.textContent = 'Submitting...';
+    }
+
+    try {
+      var res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json' },
+        body: formData
+      });
+
+      var data = await res.json().catch(function () { return {}; });
+
+      if (!res.ok) {
+        var msg = 'Submission failed. Please try again.';
+        if (data && data.errors && data.errors.length && data.errors[0].message) {
+          msg = data.errors[0].message;
+        }
+        throw new Error(msg);
       }
 
-      // only show popup for valid email
-      setTimeout(showPopup, 300);
-    });
-  }
+      setStatus('', '');
+      form.reset();
+      showPopup(userName);
+    } catch (err) {
+      setStatus(err.message || 'Submission failed. Please try again.', 'error');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = submitBtn.dataset.originalText || 'Join Waitlist';
+      }
+    }
+  });
 });
 </script></body>
 </html>
